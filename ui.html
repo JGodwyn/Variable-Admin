@@ -285,48 +285,21 @@
           const valueContainer = document.createElement('div');
           valueContainer.className = 'variable-value';
 
+          // Handle variable value display
+          let displayValue = '';
           if (
+            variable.type === 'COLOR' &&
             variable.value &&
-            typeof variable.value === 'object' &&
-            'type' in variable.value &&
-            variable.value.type === 'VARIABLE_ALIAS'
+            typeof variable.value === 'object'
           ) {
-            // This is a reference variable
-            const referencedVariable = allVariables.find(
-              (v) => v.name === variable.referenceName,
-            );
-            valueContainer.textContent = `→ ${
-              referencedVariable
-                ? referencedVariable.value
-                : 'Unknown reference'
-            }`;
-            valueContainer.style.color = '#666';
+            const { r, g, b } = variable.value;
+            displayValue = rgbToHex(r, g, b); // Convert to hex for display
           } else {
-            // Handle primitive values
-            switch (variable.type) {
-              case 'COLOR':
-                if (variable.value && typeof variable.value === 'object') {
-                  const { r, g, b } = variable.value;
-                  const hex = rgbToHex(r, g, b);
-                  const colorPreview = document.createElement('div');
-                  colorPreview.className = 'color-preview';
-                  colorPreview.style.backgroundColor = hex;
-                  valueContainer.appendChild(colorPreview);
-                  valueContainer.appendChild(document.createTextNode(hex));
-                }
-                break;
-
-              case 'FLOAT':
-              case 'NUMBER':
-                if (typeof variable.value === 'number') {
-                  valueContainer.textContent = variable.value.toFixed(2);
-                }
-                break;
-
-              default:
-                valueContainer.textContent = String(variable.value);
-            }
+            displayValue =
+              variable.value !== null ? String(variable.value) : ''; // Convert value to string
           }
+
+          valueContainer.textContent = displayValue;
 
           div.appendChild(name);
           div.appendChild(valueContainer);
@@ -334,8 +307,7 @@
           // Add click event listener to copy variable value
           div.addEventListener('click', () => {
             const textArea = document.createElement('textarea');
-            textArea.value =
-              variable.value !== null ? String(variable.value) : ''; // Convert value to string
+            textArea.value = displayValue; // Use the display value for copying
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
