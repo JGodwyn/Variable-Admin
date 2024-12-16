@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+      body {
+        margin: 0;
+        padding-bottom: 80;
+        background-color: white;
+        width: 100%;
+        height: 100%;
+        min-width: 240px;
+        min-height: 400px;
+        position: relative;
+        overflow: hidden;
+        box-sizing: border-box;
+        font-family: 'Inter', sans-serif;
+      }
+
+      .variable-list {
+        width: 100%;
+        height: calc(100% - 80px);
+        overflow-y: auto;
+        overflow-x: hidden;
+        box-sizing: border-box;
+        padding: 16px;
+        padding-bottom: 32px;
+      }
+
+      .empty-message {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #333;
+      }
+
+      .loading {
+        font-size: 14px;
+        color: #666;
+      }
+
+      .resize-handle {
+        position: absolute;
+        background: transparent;
+        z-index: 1000;
+      }
+
+      .resize-handle.right {
+        top: 0;
+        right: 0;
+        width: 8px;
+        height: 100%;
+        cursor: ew-resize;
+      }
+
+      .resize-handle.left {
+        top: 0;
+        left: 0;
+        width: 8px;
+        height: 100%;
+        cursor: ew-resize;
+      }
+
+      .variable-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        padding: 12px;
+        margin-bottom: 8px;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        box-sizing: border-box;
+        gap: 8px;
+      }
+
+      .variable-name {
+        font-weight: 500;
+        font-size: 14px;
+      }
+
+      .variable-value {
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+        color: #333;
+      }
+
+      .color-preview {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        margin-right: 4px;
+        border: 1px solid #e5e5e5;
+      }
+
+      .collection-dropdown {
+        width: calc(100% - 32px);
+        padding: 8px;
+        padding-right: 24px;
+        box-sizing: border-box;
+        border: 1px solid #e5e5e5;
+        border-radius: 4px;
+        margin: 16px;
+      }
+
+      .notification {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #333;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+        z-index: 1000;
+        animation: fadeIn 0.3s ease-in-out;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, 20px);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+      }
+
+      .fade-out {
+        animation: fadeOut 0.3s ease-in-out;
+      }
+
+      @keyframes fadeOut {
+        from {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+        to {
+          opacity: 0;
+          transform: translate(-50%, 20px);
+        }
+      }
+
+      .variable-item {
+        padding: 8px 16px;
+        transition: background-color 0.2s ease;
+      }
+
+      .variable-item:hover {
+        background-color: #f0f0f0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <select id="collectionDropdown" class="collection-dropdown">
+      <option value="all">All Collections</option>
+    </select>
+
+    <input
+      type="text"
+      id="searchBar"
+      placeholder="Search variables..."
+      style="
+        width: calc(100% - 32px);
+        padding: 8px 16px 8px 12px;
+        margin: 0 16px;
+        box-sizing: border-box;
+        margin-bottom: 8px;
+        border-radius: 8px;
+        background-color: #f5f5f5;
+        border: 1px solid #d3d3d3;
+      "
+    />
+
+    <div
+      id="variableCount"
+      style="
+        margin: 16px 16px 8px 16px;
+        font-size: 20px;
+        color: #333;
+        font-weight: bold;
+      "
+    ></div>
+
+    <div id="variableList" class="variable-list" style="cursor: pointer">
+      <div class="empty-message">
+        <div class="loading">Loading variables...</div>
+      </div>
+    </div>
+
+    <div id="resizeHandleLeft" class="resize-handle left"></div>
+    <div id="resizeHandleRight" class="resize-handle right"></div>
+
+    <script>
+      let allVariables = [];
+      let collectionMap = {};
+
+      window.onmessage = (event) => {
+        const message = event.data.pluginMessage;
+        console.log('Received message:', message); // Debug log
+
+        if (!message || !message.type) {
+          console.error('Invalid message received');
+          return;
+        }
+
+        const variableList = document.getElementById('variableList');
+        const collectionDropdown =
+          document.getElementById('collectionDropdown');
+        const searchBar = document.getElementById('searchBar');
+
+        switch (message.type) {
+          case 'init-resize':
+            // Execute the resize script
+            eval(message.script);
+            break;
+
+          case 'empty':
+            variableList.innerHTML = `<div class="empty-message">${message.message}</div>`;
+            break;
+
+          case 'error':
+            variableList.innerHTML = `<div class="empty-message" style="color: red;">${message.message}</div>`;
+            break;
+
+          case 'variables':
+            variableList.innerHTML = ''; // Clear loading message
+            allVariables = message.variables;
+            collectionMap = message.collections.reduce((acc, collection) => {
+              acc[collection] = allVariables.filter(
+                (v) => v.collection === collection,
+              );
+              return acc;
+            }, {});
+
+            // Sort collections alphabetically
+            const sortedCollections = message.collections.sort((a, b) =>
+              a.localeCompare(b),
+            );
+
+            // Populate dropdown
+            sortedCollections.forEach((collection) => {
+              const option = document.createElement('option');
+              option.value = collection;
+              option.textContent = collection;
+              collectionDropdown.appendChild(option);
+            });
+
+            // Show all variables by default
+            displayVariables(allVariables);
+            break;
+
+          default:
+            console.error('Unknown message type:', message.type);
+        }
+      };
+
+      function displayVariables(variables) {
+        const variableList = document.getElementById('variableList');
+        const variableCount = document.getElementById('variableCount');
+        variableList.innerHTML = '';
+
+        variableCount.textContent = `${variables.length} variables found`;
+
+        if (variables.length === 0) {
+          variableList.innerHTML =
+            '<div class="empty-message">No variables found</div>';
+          variableCount.textContent = '';
+          return;
+        }
+
+        variables.forEach((variable) => {
+          console.log('Processing variable:', variable);
+
+          const div = document.createElement('div');
+          div.className = 'variable-item';
+
+          const name = document.createElement('div');
+          name.className = 'variable-name';
+          name.textContent = variable.name;
+
+          const valueContainer = document.createElement('div');
+          valueContainer.className = 'variable-value';
+
+          if (
+            variable.value &&
+            typeof variable.value === 'object' &&
+            'type' in variable.value &&
+            variable.value.type === 'VARIABLE_ALIAS'
+          ) {
+            // This is a reference variable
+            const referencedVariable = allVariables.find(
+              (v) => v.name === variable.referenceName,
+            );
+            valueContainer.textContent = `→ ${
+              referencedVariable
+                ? referencedVariable.value
+                : 'Unknown reference'
+            }`;
+            valueContainer.style.color = '#666';
+          } else {
+            // Handle primitive values
+            switch (variable.type) {
+              case 'COLOR':
+                if (variable.value && typeof variable.value === 'object') {
+                  const { r, g, b } = variable.value;
+                  const hex = rgbToHex(r, g, b);
+                  const colorPreview = document.createElement('div');
+                  colorPreview.className = 'color-preview';
+                  colorPreview.style.backgroundColor = hex;
+                  valueContainer.appendChild(colorPreview);
+                  valueContainer.appendChild(document.createTextNode(hex));
+                }
+                break;
+
+              case 'FLOAT':
+              case 'NUMBER':
+                if (typeof variable.value === 'number') {
+                  valueContainer.textContent = variable.value.toFixed(2);
+                }
+                break;
+
+              default:
+                valueContainer.textContent = String(variable.value);
+            }
+          }
+
+          div.appendChild(name);
+          div.appendChild(valueContainer);
+
+          // Add click event listener to copy variable value
+          div.addEventListener('click', () => {
+            const textArea = document.createElement('textarea');
+            textArea.value =
+              variable.value !== null ? String(variable.value) : ''; // Convert value to string
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            parent.postMessage(
+              {
+                pluginMessage: {
+                  type: 'copy-to-clipboard',
+                  text: textArea.value,
+                },
+              },
+              '*',
+            );
+            console.log(`Copied value: ${textArea.value}`); // Debug log
+          });
+
+          variableList.appendChild(div);
+        });
+      }
+
+      function rgbToHex(r, g, b) {
+        return (
+          '#' +
+          [r, g, b]
+            .map((x) => {
+              const hex = Math.round(x * 255).toString(16);
+              return hex.length === 1 ? '0' + hex : hex;
+            })
+            .join('')
+        );
+      }
+
+      document
+        .getElementById('collectionDropdown')
+        .addEventListener('change', (event) => {
+          const selectedCollection = event.target.value;
+          if (selectedCollection === 'all') {
+            displayVariables(allVariables);
+          } else {
+            displayVariables(collectionMap[selectedCollection] || []);
+          }
+        });
+
+      // Add search functionality
+      document
+        .getElementById('searchBar')
+        .addEventListener('input', (event) => {
+          const searchTerm = event.target.value.toLowerCase();
+          const selectedCollection = collectionDropdown.value;
+          let filteredVariables;
+
+          if (selectedCollection === 'all') {
+            // Search through all variables
+            filteredVariables = allVariables.filter((variable) => {
+              const variableValue =
+                variable.value !== null ? String(variable.value) : ''; // Convert value to string
+              return (
+                variable.name.toLowerCase().includes(searchTerm) ||
+                variableValue.toLowerCase().includes(searchTerm)
+              );
+            });
+          } else {
+            // Search through the selected collection
+            filteredVariables = collectionMap[selectedCollection].filter(
+              (variable) => {
+                const variableValue =
+                  variable.value !== null ? String(variable.value) : ''; // Convert value to string
+                return (
+                  variable.name.toLowerCase().includes(searchTerm) ||
+                  variableValue.toLowerCase().includes(searchTerm)
+                );
+              },
+            );
+          }
+
+          displayVariables(filteredVariables);
+        });
+    </script>
+  </body>
+</html>
