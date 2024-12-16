@@ -301,7 +301,8 @@
               variable.value !== undefined ? String(variable.value) : ''; // Use raw value for other types
           }
 
-          valueContainer.textContent = displayValue;
+          // Set the value container text
+          valueContainer.textContent = displayValue !== '' ? displayValue : '0'; // Show 0 if displayValue is empty for numbers
 
           div.appendChild(name);
           div.appendChild(valueContainer);
