@@ -309,7 +309,7 @@
           // Add click event listener to copy variable value
           div.addEventListener('click', () => {
             const textArea = document.createElement('textarea');
-            textArea.value = displayValue; // Use the display value for copying
+            textArea.value = displayValue !== '' ? displayValue : '0'; // Copy 0 if displayValue is empty
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
