@@ -294,9 +294,11 @@
           ) {
             const { r, g, b } = variable.value;
             displayValue = rgbToHex(r, g, b); // Convert to hex for display
+          } else if (variable.type === 'NUMBER') {
+            displayValue = variable.value !== undefined ? variable.value : 0; // Default to 0 if undefined
           } else {
             displayValue =
-              variable.value !== null ? String(variable.value) : ''; // Convert value to string
+              variable.value !== undefined ? String(variable.value) : ''; // Use raw value for other types
           }
 
           valueContainer.textContent = displayValue;
